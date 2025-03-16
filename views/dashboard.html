@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard - QRLock</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .dashboard-container { display: flex; flex-wrap: wrap; }
+    .sidebar { flex: 1 1 250px; max-width: 250px; padding: 20px; background: #f1f1f1; border-right: 1px solid #ddd; }
+    .sidebar ul { list-style: none; padding: 0; }
+    .sidebar ul li { margin-bottom: 15px; }
+    .sidebar ul li a { color: #2c3e50; text-decoration: none; font-weight: 600; }
+    .content { flex: 3 1 500px; padding: 20px; }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <a href="/dashboard" class="nav-brand">QRLock</a>
+      <ul class="nav-menu">
+        <li><a href="/encrypt">Encrypt File</a></li>
+        <li><a href="/decrypt">Decrypt Files</a></li>
+        <li><a href="/files">Files</a></li>
+        <li><a href="/logout">Logout</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="container dashboard-container">
+    <div class="sidebar">
+      <ul>
+        <li><a href="/account/change-username">Change Username</a></li>
+        <li><a href="/account/change-password">Change Password</a></li>
+        <li><a href="/account/delete">Delete Account</a></li>
+      </ul>
+    </div>
+    <div class="content">
+      <h1>Dashboard</h1>
+      <p><strong>Username:</strong> {{username}}</p>
+      <p><strong>Gmail:</strong> {{gmail}}</p>
+    </div>
+  </div>
+</body>
+</html>

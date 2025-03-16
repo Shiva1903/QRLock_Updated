@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Confirm Delete User - QRLock Admin</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .confirm-container {
+      text-align: center;
+      padding: 20px;
+    }
+    .confirm-container p {
+      font-size: 1.2em;
+      margin-bottom: 20px;
+    }
+    .confirm-container form {
+      display: inline-block;
+    }
+    .confirm-container .btn {
+      margin: 0 10px;
+      padding: 10px 20px;
+      background-color: #e74c3c;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .confirm-container .btn:hover {
+      background-color: #c0392b;
+    }
+  </style>
+</head>
+<body>
+  <div class="confirm-container">
+    <h2>Confirm Delete</h2>
+    <p>Are you sure you want to delete the user with gmail "{{gmail}}"?</p>
+    <form action="/system-core-access-106014491553/users/delete" method="POST">
+      <input type="hidden" name="userId" value="{{userId}}">
+      <input type="hidden" name="gmail" value="{{gmail}}">
+      <button type="submit" class="btn">Yes, Delete</button>
+    </form>
+    <a href="/system-core-access-106014491553/users" class="btn">Cancel</a>
+  </div>
+</body>
+</html>

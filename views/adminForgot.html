@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Forgot Password - QRLock</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .message {
+      color: green;
+      margin-top: 10px;
+      text-align: center;
+    }
+    .error-message {
+      color: red;
+      margin-top: 10px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="form-container">
+    <h2>Admin Forgot Password</h2>
+    <form action="/system-core-access-106014491553/forgot" method="POST">
+      <div class="form-group">
+        <label for="gmail">Enter your admin Gmail:</label>
+        <input type="email" id="gmail" name="gmail" required>
+      </div>
+      <button type="submit" class="btn">Send Reset Link</button>
+      <div class="message">{{message}}</div>
+      <div class="error-message">{{errorMessage}}</div>
+    </form>
+  </div>
+  <script>
+    window.addEventListener('pageshow', function() {
+      const msgDiv = document.querySelector('.message');
+      if(msgDiv && msgDiv.textContent.trim() === "") {
+        msgDiv.style.display = 'none';
+      }
+      const errorDiv = document.querySelector('.error-message');
+      if(errorDiv && errorDiv.textContent.trim() === "") {
+        errorDiv.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>

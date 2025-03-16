@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Login - QRLock</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .error-message {
+      color: red;
+      margin-top: 10px;
+      text-align: center;
+    }
+    .forgot-link {
+      text-align: center;
+      margin-top: 15px;
+    }
+    .forgot-link a {
+      color: #3498db;
+      text-decoration: none;
+    }
+    .forgot-link a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="form-container">
+    <h2>Admin Login</h2>
+    <form action="/system-core-access-106014491553/login" method="POST">
+      <div class="form-group">
+        <label for="gmail">Gmail:</label>
+        <input type="email" id="gmail" name="gmail" required>
+      </div>
+      <div class="form-group">
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      <button type="submit" class="btn">Login</button>
+      <div class="error-message">{{errorMessage}}</div>
+    </form>
+    <div class="forgot-link">
+      <a href="/system-core-access-106014491553/forgot">Forgot Password?</a>
+    </div>
+  </div>
+  <script>
+    window.addEventListener('pageshow', function() {
+      const errorDiv = document.querySelector('.error-message');
+      if(errorDiv && errorDiv.textContent.trim() === "") {
+        errorDiv.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>
