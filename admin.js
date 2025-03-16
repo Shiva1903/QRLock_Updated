@@ -13,10 +13,10 @@ const router = express.Router();
 router.use(express.urlencoded({ extended: false }));
 router.use(express.json());
 
-const dbPath = path.join(__dirname, "database.sqlite");
+const dbPath = "/data/database.sqlite";
 const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
-  if (err) console.error("Error opening database:", err.message);
-  else console.log("Connected to SQLite database at:", dbPath);
+  if(err) console.error('Error opening database:', err.message);
+  else console.log('Connected to SQLite database at:', dbPath);
 });
 
 function dbGet(sql, params = []) {
