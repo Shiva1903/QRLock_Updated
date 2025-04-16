@@ -22,7 +22,7 @@ app.use(session({
   secret: 'sessionSecret',
   resave: false,
   saveUninitialized: true,
-  cookie: { maxAge: 600000 },
+  cookie: { maxAge: 18000000 },
   rolling: true
 }));
 app.use('/system-core-access-106014491553', adminRouter);
@@ -35,10 +35,13 @@ app.use('/qrcodes', express.static(qrDir));
 const upload = multer({ storage: multer.memoryStorage() });
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
-const dbPath = "/data/database.sqlite";
+const dbPath = path.join(__dirname, "database.sqlite");
 const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
-  if(err) console.error('Error opening database:', err.message);
-  else console.log('Connected to SQLite database at:', dbPath);
+  if (err) {
+    console.error('Error opening database:', err.message);
+  } else {
+    console.log('Connected to SQLite database at:', dbPath);
+  }
 });
 db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS users (
@@ -87,16 +90,46 @@ db.serialize(() => {
     used INTEGER DEFAULT 0,
     FOREIGN KEY(user_id) REFERENCES users(id)
   )`);
+  // New Notifications table
+  db.run(`CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recipient_username TEXT NOT NULL,
+    sender_username TEXT NOT NULL,
+    file_id TEXT NOT NULL,
+    message TEXT,
+    read INTEGER DEFAULT 0,
+    created_at INTEGER DEFAULT (strftime('%s','now'))
+  )`);
 });
+
+function computePSNR(originalBuffer, stegoBuffer) {
+  try {
+    const originalPNG = PNG.sync.read(originalBuffer);
+    const stegoPNG = PNG.sync.read(stegoBuffer);
+    let mse = 0;
+    const totalPixels = originalPNG.data.length;
+    for (let i = 0; i < totalPixels; i++) {
+      const diff = originalPNG.data[i] - stegoPNG.data[i];
+      mse += diff * diff;
+    }
+    mse = mse / totalPixels;
+    if (mse === 0) {
+      return Infinity;
+    }
+    const psnr = 10 * Math.log10((255 * 255) / mse);
+    return psnr;
+  } catch (error) {
+    console.error("Error computing PSNR:", error.message);
+    return null;
+  }
+}
 
 (async () => {
   try {
     const adminEmail = process.env.ADMIN_EMAIL || "shivasomucsc@gmail.com";
     const adminPassword = process.env.ADMIN_PASSWORD || "Xj8#z1Qp@960!LmD";
-    // Check if admin user already exists
     const existingAdmin = await dbGet("SELECT * FROM users WHERE gmail=?", [adminEmail]);
     if (!existingAdmin) {
-      // Insert a new admin user with no RSA keys
       const adminHash = hashPassword(adminPassword);
       await dbRun(
         `INSERT INTO users (gmail, username, password_hash, public_key_pem, private_key_pem)
@@ -152,24 +185,37 @@ function hashPassword(password) {
 function checkPassword(storedHash, candidate) {
   return bcrypt.compareSync(candidate, storedHash);
 }
-function aesEncrypt(dataBuf, keyBuf) {
+function aesEncrypt(dataBuf, keyBuf, aad = "") {
   const iv = forge.random.getBytesSync(12);
   const cipher = forge.cipher.createCipher('AES-GCM', keyBuf.toString('binary'));
-  cipher.start({ iv });
+  console.log("Key length (bytes):", keyBuf.length);
+  cipher.start({ iv, additionalData: aad });
   cipher.update(forge.util.createBuffer(dataBuf));
-  cipher.finish();
+  if (!cipher.finish()) {
+    throw new Error("Encryption failed");
+  }
   const ciphertext = cipher.output.getBytes();
   const tag = cipher.mode.tag.getBytes();
-  return { ciphertext: Buffer.from(ciphertext, 'binary'), iv: Buffer.from(iv, 'binary'), tag: Buffer.from(tag, 'binary') };
+  return { 
+    ciphertext: Buffer.from(ciphertext, 'binary'), 
+    iv: Buffer.from(iv, 'binary'), 
+    tag: Buffer.from(tag, 'binary') 
+  };
 }
-function aesDecrypt(ciphertextBuf, keyBuf, ivBuf, tagBuf) {
+
+function aesDecrypt(ciphertextBuf, keyBuf, ivBuf, tagBuf, aad = "") {
   const decipher = forge.cipher.createDecipher('AES-GCM', keyBuf.toString('binary'));
-  decipher.start({ iv: ivBuf.toString('binary'), tag: forge.util.createBuffer(tagBuf.toString('binary')) });
+  decipher.start({ 
+    iv: ivBuf.toString('binary'), 
+    tag: forge.util.createBuffer(tagBuf.toString('binary')), 
+    additionalData: aad 
+  });
   decipher.update(forge.util.createBuffer(ciphertextBuf));
   if (!decipher.finish()) throw new Error("AES-GCM authentication failed");
   const plain = decipher.output.getBytes();
   return Buffer.from(plain, 'binary');
 }
+
 function rsaEncrypt(publicKeyPem, dataBuf) {
   const pubKey = forge.pki.publicKeyFromPem(publicKeyPem);
   const encrypted = pubKey.encrypt(dataBuf.toString('binary'), 'RSA-OAEP', { md: forge.md.sha256.create() });
@@ -219,11 +265,17 @@ function embedPayloadLSB(imageBuffer, payloadStr) {
     resolve(outputBuffer);
   });
 }
+
 async function embedPayloadInQRCodeLSB(payloadStr, fillerMessage) {
   const qrBuffer = await QRCode.toBuffer(fillerMessage, { type: 'png' });
   const stegoBuffer = await embedPayloadLSB(qrBuffer, payloadStr);
+  const payloadSize = Buffer.byteLength(payloadStr, 'utf8');
+  console.log(`JSON Payload Size: ${payloadSize} bytes`);
+  const psnrValue = computePSNR(qrBuffer, stegoBuffer);
+  console.log(`PSNR for payload size ${payloadSize} bytes: ${psnrValue !== null ? psnrValue.toFixed(2) : 'error'} dB`);
   return stegoBuffer;
 }
+
 function extractPayloadLSB(imageBuffer) {
   const png = PNG.sync.read(imageBuffer);
   const pixelCount = png.width * png.height;
@@ -536,6 +588,107 @@ app.get('/files', requireLogin, async (req, res) => {
   }
 });
 
+app.get('/files-sent', requireLogin, async (req, res) => {
+  try {
+    
+    const files = await dbAll(`SELECT * FROM files WHERE uploader_id = ?`, [req.session.userId]);
+
+    let renderedSection = '';
+    if (files.length === 0) {
+      
+      renderedSection = `
+        <p style="text-align:center; margin-top: 20px;">No files sent.</p>
+      `;
+    } else {
+      
+      let rows = '';
+      files.forEach(file => {
+        rows += `
+          <tr>
+            <td>${file.original_filename}</td>
+            <td>${file.recipients}</td>
+            <td>
+              <button class="delete-btn" onclick="deleteFile('${file.file_id}')">
+                Delete
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+      
+      renderedSection = `
+        <table>
+          <thead>
+            <tr>
+              <th>File Name</th>
+              <th>Recipients</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+        <script>
+          function deleteFile(fileId) {
+            if (confirm("Are you sure you want to delete this file?")) {
+              fetch('/files-sent/' + fileId, { method: 'DELETE' })
+                .then(response => response.json())
+                .then(data => {
+                  if (data.success) {
+                    alert("File deleted successfully.");
+                    location.reload();
+                  } else {
+                    alert("Error deleting file: " + (data.message || "Unknown error"));
+                  }
+                })
+                .catch(err => {
+                  console.error(err);
+                  alert("Error deleting file.");
+                });
+            }
+          }
+        </script>
+      `;
+    }
+
+   
+    serveTemplate(res, path.join(__dirname, 'views', 'filesSent.html'), { fileSection: renderedSection });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error retrieving sent files.');
+  }
+});
+app.delete('/files-sent/:file_id', requireLogin, async (req, res) => {
+  try {
+    const user = await dbGet(`SELECT * FROM users WHERE id=?`, [req.session.userId]);
+    const fileRecord = await dbGet(`SELECT * FROM files WHERE file_id=?`, [req.params.file_id]);
+    if (!fileRecord) {
+      return res.status(404).json({ success: false, message: 'File not found.' });
+    }
+   
+    if (fileRecord.uploader_id !== user.id) {
+      return res.status(403).json({ success: false, message: 'You are not authorized to delete this file.' });
+    }
+    
+    await dbRun("DELETE FROM files WHERE file_id=?", [req.params.file_id]);
+
+    
+    if (fileRecord.qr_code_path && fs.existsSync(fileRecord.qr_code_path)) {
+      try {
+        fs.unlinkSync(fileRecord.qr_code_path);
+      } catch (unlinkErr) {
+        console.error("Error deleting file from disk:", unlinkErr);
+        return res.status(500).json({ success: false, message: 'Error deleting file from disk.' });
+      }
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Delete file error:", err);
+    return res.status(500).json({ success: false, message: 'Error deleting file.' });
+  }
+});
+
 app.get('/encrypt', requireLogin, (req, res) => { res.sendFile(path.join(__dirname, 'views', 'encrypt.html')); });
 app.post('/encrypt', requireLogin, upload.single('file_to_encrypt'), async (req, res) => {
   try {
@@ -544,13 +697,22 @@ app.post('/encrypt', requireLogin, upload.single('file_to_encrypt'), async (req,
     if (!recipientsInput) return sendMessage(res, "No recipients entered.", "/encrypt", "Back");
     let recipients = recipientsInput.split(',').map(r => r.trim()).filter(r => r !== "");
     if (recipients.length === 0) return sendMessage(res, "No valid recipients entered.", "/encrypt", "Back");
+
     const fileData = req.file.buffer;
     const aesKey = forge.random.getBytesSync(32);
     const aesKeyBuf = Buffer.from(aesKey, 'binary');
-    const { ciphertext, iv, tag } = aesEncrypt(fileData, aesKeyBuf);
-    let payload;
     const file_id = Date.now().toString() + Math.floor(Math.random() * 1000).toString();
-    // For single recipient
+
+    const aadObject = {
+      original_filename: req.file.originalname,
+      threshold: recipients.length === 1 ? 1 : recipients.length,
+      file_id: file_id,
+      recipients: recipients
+    };
+    const aadStr = JSON.stringify(aadObject);
+    const { ciphertext, iv, tag } = aesEncrypt(fileData, aesKeyBuf, aadStr);
+
+    let payload;
     if (recipients.length === 1) {
       const user = await dbGet(`SELECT * FROM users WHERE username=?`, [recipients[0]]);
       if (!user) return sendMessage(res, `User ${recipients[0]} not found.`, "/encrypt", "Back");
@@ -562,7 +724,8 @@ app.post('/encrypt', requireLogin, upload.single('file_to_encrypt'), async (req,
         ciphertext: ciphertext.toString('base64'),
         encrypted_key: encryptedKey.toString('base64'),
         threshold: 1,
-        file_id: file_id
+        file_id: file_id,
+        aad: aadStr  
       };
     } else {
       const aesKeyHex = aesKeyBuf.toString('hex');
@@ -584,16 +747,28 @@ app.post('/encrypt', requireLogin, upload.single('file_to_encrypt'), async (req,
         ciphertext: ciphertext.toString('base64'),
         encrypted_shares: encryptedShares,
         threshold: recipients.length,
-        file_id: file_id
+        file_id: file_id,
+        aad: aadStr 
       };
     }
     const payloadStr = JSON.stringify(payload, null, 2);
+    console.log(`JSON Payload Size: ${Buffer.byteLength(payloadStr, 'utf8')} bytes`);
     const fillerMessage = "This QR Code contains secure encrypted data. Do not attempt to retrieve hidden info.";
     const qrBuffer = await embedPayloadInQRCodeLSB(payloadStr, fillerMessage);
     const qrFilePath = path.join(qrDir, `${file_id}.png`);
     fs.writeFileSync(qrFilePath, qrBuffer);
     await dbRun(`INSERT INTO files (uploader_id, original_filename, qr_code_path, json_payload, recipients, threshold, file_id, downloads) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [req.session.userId, req.file.originalname, qrFilePath, payloadStr, JSON.stringify(recipients), recipients.length, file_id, '[]']);
+      
+    // Insert notifications for recipients (excluding sender)
+    const senderUser = await dbGet(`SELECT * FROM users WHERE id=?`, [req.session.userId]);
+    for (const r of recipients) {
+      if (r !== senderUser.username) {
+        await dbRun(`INSERT INTO notifications (recipient_username, sender_username, file_id, message) VALUES (?, ?, ?, ?)`,
+          [r, senderUser.username, file_id, `${senderUser.username} has sent you a file.`]);
+      }
+    }
+      
     serveTemplate(res, path.join(__dirname, 'views', 'encryptSuccess.html'), { file_id });
   } catch (err) {
     console.error(err);
@@ -692,6 +867,7 @@ app.post('/decrypt/:file_id', requireLogin, async (req, res) => {
     const fileRecord = await dbGet(`SELECT * FROM files WHERE file_id=?`, [file_id]);
     if (!fileRecord) return sendMessage(res, "File not found or already decrypted.", "/dashboard", "Back");
     if (fileRecord.uploader_id === user.id) return sendMessage(res, "Not authorized to decrypt this file.", "/dashboard", "Back");
+
     let payloadStr;
     try {
       const imgBuffer = fs.readFileSync(fileRecord.qr_code_path);
@@ -699,18 +875,34 @@ app.post('/decrypt/:file_id', requireLogin, async (req, res) => {
     } catch (err) {
       return sendMessage(res, "Failed to extract payload from QR code.", "/dashboard", "Back");
     }
+  
+    if (payloadStr !== fileRecord.json_payload) {
+      throw new Error("JSON payload integrity check failed: payload tampered.");
+    }
+
     const payload = JSON.parse(payloadStr);
-    let aesKeyBuf;
+    const aadStr = payload.aad;
+    if (!aadStr) {
+      return sendMessage(res, "Missing AAD for decryption. File may have been tampered with.", "/dashboard", "Back");
+    }
+
     if (payload.encrypted_key) {
-      aesKeyBuf = rsaDecrypt(user.private_key_pem, Buffer.from(payload.encrypted_key, 'base64'));
+      const aesKeyBuf = rsaDecrypt(user.private_key_pem, Buffer.from(payload.encrypted_key, 'base64'));
       if (!globalOTPStore[file_id] || !globalOTPStore[file_id][user.username])
         return sendMessage(res, "OTP not found. Please try again.", `/decrypt/${file_id}`, "Retry");
       const otpEntry = globalOTPStore[file_id][user.username];
       if (otpEntry.used) return sendMessage(res, "This OTP has already been used.", "/dashboard", "Back");
-      if (Date.now() > otpEntry.expiresAt) { delete globalOTPStore[file_id][user.username]; return sendMessage(res, "OTP expired.", `/decrypt/${file_id}`, "Request new OTP"); }
+      if (Date.now() > otpEntry.expiresAt) { 
+        delete globalOTPStore[file_id][user.username]; 
+        return sendMessage(res, "OTP expired.", `/decrypt/${file_id}`, "Request new OTP");
+      }
       if (enteredOTP !== otpEntry.otp) return sendMessage(res, "Invalid OTP.", `/decrypt/${file_id}`, "Try again");
       otpEntry.used = true;
       delete globalOTPStore[file_id][user.username];
+      const ivBuf = Buffer.from(payload.iv, 'base64');
+      const tagBuf = Buffer.from(payload.tag, 'base64');
+      const ciphertextBuf = Buffer.from(payload.ciphertext, 'base64');
+      const plainBuf = aesDecrypt(ciphertextBuf, aesKeyBuf, ivBuf, tagBuf, aadStr);
       if (!globalReconstructedKey[file_id]) globalReconstructedKey[file_id] = aesKeyBuf;
       return sendMessage(res, "File is now ready for download. Please go to the Files page.", "/files", "Files");
     } else {
@@ -720,10 +912,14 @@ app.post('/decrypt/:file_id', requireLogin, async (req, res) => {
         return sendMessage(res, "OTP not found. Please try again.", `/decrypt/${file_id}`, "Retry");
       const otpEntry = globalOTPStore[file_id][user.username];
       if (otpEntry.used) return sendMessage(res, "This OTP has already been used.", "/dashboard", "Back");
-      if (Date.now() > otpEntry.expiresAt) { delete globalOTPStore[file_id][user.username]; return sendMessage(res, "OTP expired.", `/decrypt/${file_id}`, "Request new OTP"); }
+      if (Date.now() > otpEntry.expiresAt) { 
+        delete globalOTPStore[file_id][user.username]; 
+        return sendMessage(res, "OTP expired.", `/decrypt/${file_id}`, "Request new OTP");
+      }
       if (enteredOTP !== otpEntry.otp) return sendMessage(res, "Invalid OTP.", `/decrypt/${file_id}`, "Try again");
       otpEntry.used = true;
       delete globalOTPStore[file_id][user.username];
+
       const shareBuf = Buffer.from(myShareObj.encrypted_share, 'base64');
       const decShareBuf = rsaDecrypt(user.private_key_pem, shareBuf);
       if (!globalDecryptionPool[file_id]) globalDecryptionPool[file_id] = {};
@@ -731,7 +927,12 @@ app.post('/decrypt/:file_id', requireLogin, async (req, res) => {
       const shares = Object.values(globalDecryptionPool[file_id]);
       if (shares.length >= JSON.parse(fileRecord.recipients).length) {
         const combinedHex = recoverSecret(shares.slice(0, shares.length));
-        aesKeyBuf = Buffer.from(combinedHex, 'hex');
+        const aesKeyBuf = Buffer.from(combinedHex, 'hex');
+
+        const ivBuf = Buffer.from(payload.iv, 'base64');
+        const tagBuf = Buffer.from(payload.tag, 'base64');
+        const ciphertextBuf = Buffer.from(payload.ciphertext, 'base64');
+        const plainBuf = aesDecrypt(ciphertextBuf, aesKeyBuf, ivBuf, tagBuf, aadStr);
         globalReconstructedKey[file_id] = aesKeyBuf;
         return sendMessage(res, "File is now ready for download. Please go to the Files page.", "/files", "Files");
       } else {
@@ -752,8 +953,14 @@ app.get('/download/:file_id', requireLogin, async (req, res) => {
     if (!fileRecord) return sendMessage(res, "File not found.", "/dashboard", "Back");
     if (fileRecord.uploader_id === user.id)
       return sendMessage(res, "Not authorized to download this file.", "/dashboard", "Back");
-    let payloadStr = extractPayloadLSB(fs.readFileSync(fileRecord.qr_code_path));
-    const payload = JSON.parse(payloadStr);
+      
+    
+    let extractedPayloadStr = extractPayloadLSB(fs.readFileSync(fileRecord.qr_code_path));
+    
+    if (extractedPayloadStr !== fileRecord.json_payload) {
+      throw new Error("JSON payload integrity check failed: payload tampered.");
+    }
+    const payload = JSON.parse(extractedPayloadStr);
     let aesKeyBuf;
     if (payload.encrypted_key) {
       aesKeyBuf = rsaDecrypt(user.private_key_pem, Buffer.from(payload.encrypted_key, 'base64'));
@@ -765,7 +972,7 @@ app.get('/download/:file_id', requireLogin, async (req, res) => {
     const ivBuf = Buffer.from(payload.iv, 'base64');
     const tagBuf = Buffer.from(payload.tag, 'base64');
     const ciphertextBuf = Buffer.from(payload.ciphertext, 'base64');
-    const plainBuf = aesDecrypt(ciphertextBuf, aesKeyBuf, ivBuf, tagBuf);
+    const plainBuf = aesDecrypt(ciphertextBuf, aesKeyBuf, ivBuf, tagBuf, payload.aad);
     let downloads = [];
     try { downloads = JSON.parse(fileRecord.downloads || '[]'); } catch (e) { downloads = []; }
     if (!downloads.includes(user.username)) {
@@ -783,6 +990,29 @@ app.get('/download/:file_id', requireLogin, async (req, res) => {
   } catch (err) {
     console.error(err);
     sendMessage(res, `Error during download: ${err.message}`, "/dashboard", "Back");
+  }
+});
+
+// NEW Notifications API Routes
+app.get('/notifications', requireLogin, async (req, res) => {
+  try {
+    const user = await dbGet(`SELECT * FROM users WHERE id=?`, [req.session.userId]);
+    const notifications = await dbAll(`SELECT * FROM notifications WHERE recipient_username=? AND read=0 ORDER BY id DESC`, [user.username]);
+    res.json(notifications);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error retrieving notifications.' });
+  }
+});
+
+app.delete('/notifications/:id', requireLogin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await dbRun(`UPDATE notifications SET read=1 WHERE id=?`, [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error updating notification.' });
   }
 });
 
