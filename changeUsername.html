@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Change Username - QRLock</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <a href="/dashboard" class="nav-brand">QRLock</a>
+      <ul class="nav-menu">
+        <li><a href="/dashboard">Dashboard</a></li>
+        <li><a href="/files">Files Received</a></li>
+        <li><a href="/logout">Logout</a></li>
+        <li><a href="/files-sent">Files Sent</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="form-container">
+    <h2>Change Username</h2>
+    <form action="/account/change-username" method="POST">
+      <div class="form-group">
+        <label for="newUsername">New Username:</label>
+        <input type="text" id="newUsername" name="newUsername" required>
+      </div>
+      <button type="submit" class="btn">Change Username</button>
+    </form>
+    <p><a href="/dashboard">Back to Dashboard</a></p>
+  </div>
+</body>
+</html>

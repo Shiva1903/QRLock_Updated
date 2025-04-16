@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <a href="/home" class="nav-brand">QRLock</a>
+      <ul class="nav-menu">
+        <li><a href="/login">Login</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="container">
+    <h1>Registration Successful!</h1>
+    <p>Welcome, {{username}}!</p>
+    <p>Please scan the QR code below with your Google Authenticator app to set up multi-factor authentication:</p>
+    <div style="text-align: center;">
+      <img src="{{qrCodeDataUrl}}" alt="Google Authenticator QR Code">
+    </div>
+    <p style="text-align: center;"><a href="/login" class="btn">Proceed to Login</a></p>
+  </div>
+</body>
+</html>

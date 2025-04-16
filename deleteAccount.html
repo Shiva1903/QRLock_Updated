@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Delete Account - QRLock</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .warning { color: #e74c3c; font-weight: bold; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <a href="/dashboard" class="nav-brand">QRLock</a>
+      <ul class="nav-menu">
+        <li><a href="/dashboard">Dashboard</a></li>
+        <li><a href="/files">Files Received</a></li>
+        <li><a href="/logout">Logout</a></li>
+        <li><a href="/files-sent">Files Sent</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="form-container">
+    <h2>Delete Account</h2>
+    <p class="warning">Warning: This action is irreversible. All your data will be permanently deleted.</p>
+    <form action="/account/delete" method="POST">
+      <div class="form-group">
+        <label for="currentPassword">Enter Your Current Password:</label>
+        <input type="password" id="currentPassword" name="currentPassword" required>
+      </div>
+      <button type="submit" class="btn" style="background-color: #e74c3c;">Request Account Deletion</button>
+    </form>
+    <p><a href="/dashboard">Back to Dashboard</a></p>
+  </div>
+</body>
+</html>

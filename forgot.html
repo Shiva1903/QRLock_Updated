@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Forgot Password - QRLock</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="form-container">
+    <h2>Forgot Password</h2>
+    <form action="/forgot" method="POST">
+      <div class="form-group">
+        <label for="gmail">Enter your Gmail:</label>
+        <input type="email" id="gmail" name="gmail" required>
+      </div>
+      <button type="submit" class="btn">Send Reset Link</button>
+    </form>
+    <p><a href="/login">Back to Login</a></p>
+  </div>
+</body>
+</html>
