@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Files Sent - QRLock</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    table th, table td {
+      padding: 12px 15px;
+      border: 1px solid #d1d5da;
+      text-align: left;
+    }
+    table th {
+      background-color: #f1f1f1;
+    }
+    .delete-btn {
+      background: #e55353;
+      color: #ffffff;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    .delete-btn:hover {
+      background: #d04242;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="container">
+      <a href="/dashboard" class="nav-brand">QRLock</a>
+      <ul class="nav-menu">
+        <li><a href="/encrypt">Encrypt File</a></li>
+        <li><a href="/decrypt">Decrypt Files</a></li>
+        <li><a href="/files">Files Received</a></li>
+        <li><a href="/files-sent">Files Sent</a></li>
+        <li><a href="/logout">Logout</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="container">
+    <h1>Files Sent</h1>
+    {{fileSection}}
+  </div>
+</body>
+</html>

@@ -11,6 +11,32 @@
     .sidebar ul li { margin-bottom: 15px; }
     .sidebar ul li a { color: #2c3e50; text-decoration: none; font-weight: 600; }
     .content { flex: 3 1 500px; padding: 20px; }
+    
+    /* Notification Styles */
+    #notification-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+    }
+    .notification {
+      background: #333;
+      color: #fff;
+      padding: 10px 20px;
+      margin-top: 10px;
+      border-radius: 5px;
+      position: relative;
+    }
+    .notification .close-btn {
+      background: transparent;
+      color: #fff;
+      border: none;
+      font-size: 16px;
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -20,11 +46,15 @@
       <ul class="nav-menu">
         <li><a href="/encrypt">Encrypt File</a></li>
         <li><a href="/decrypt">Decrypt Files</a></li>
-        <li><a href="/files">Files</a></li>
+        <li><a href="/files-sent">Files Sent</a></li>
+        <li><a href="/files">Files Received</a></li>
         <li><a href="/logout">Logout</a></li>
       </ul>
     </div>
   </nav>
+
+  <div id="notification-container"></div>
+
   <div class="container dashboard-container">
     <div class="sidebar">
       <ul>
@@ -39,5 +69,42 @@
       <p><strong>Gmail:</strong> {{gmail}}</p>
     </div>
   </div>
+
+  <script>
+    
+    function showNotification(notification) {
+      const container = document.getElementById('notification-container');
+      const notifDiv = document.createElement('div');
+      notifDiv.className = 'notification';
+      notifDiv.innerHTML = notification.message + ' <button class="close-btn" onclick="this.parentElement.remove()">X</button>';
+      container.appendChild(notifDiv);
+      
+      setTimeout(() => {
+        if (notifDiv.parentElement) {
+          notifDiv.remove();
+        }
+      }, 4000);
+    }
+
+    
+    function fetchNotifications() {
+      fetch('/notifications')
+        .then(response => response.json())
+        .then(data => {
+          data.forEach(notification => {
+            showNotification(notification);
+            
+            fetch(`/notifications/${notification.id}`, { method: 'DELETE' });
+          });
+        })
+        .catch(err => console.error('Error fetching notifications:', err));
+    }
+
+    
+    setInterval(fetchNotifications, 1000);
+
+    
+    window.addEventListener('DOMContentLoaded', fetchNotifications);
+  </script>
 </body>
 </html>
