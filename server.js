@@ -35,7 +35,8 @@ app.use('/qrcodes', express.static(qrDir));
 const upload = multer({ storage: multer.memoryStorage() });
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
-const dbPath = path.join(__dirname, "database.sqlite");
+const dbPath = path.join("/data", "database.sqlite");
+
 const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
   if (err) {
     console.error('Error opening database:', err.message);
